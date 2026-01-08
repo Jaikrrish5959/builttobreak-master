@@ -49,6 +49,12 @@
                         <input type="number" name="from_wallet_id" placeholder="Sender" required>
                     </div>
 
+                    <div class="form-group">
+                        <label>Sender Wallet PIN</label>
+                        <input type="password" name="pin" placeholder="Enter 4-digit PIN" maxlength="4" pattern="\d{4}"
+                            required>
+                    </div>
+
                     <!-- Single Transfer Mode -->
                     <div id="singleTransferMode">
                         <div class="form-group">

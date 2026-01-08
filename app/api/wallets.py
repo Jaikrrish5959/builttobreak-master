@@ -27,7 +27,7 @@ def read_wallet(wallet_id: int, db: Session = Depends(get_db)):
 def deposit(wallet_id: int, deposit: wallet_schema.WalletDeposit, db: Session = Depends(get_db)):
     if deposit.amount <= 0:
         raise HTTPException(status_code=400, detail="Deposit amount must be greater than 0")
-    updated_wallet = wallet_crud.deposit_wallet(db, wallet_id=wallet_id, amount=deposit.amount)
+    updated_wallet = wallet_crud.deposit_wallet(db, wallet_id=wallet_id, amount=deposit.amount, pin=deposit.pin)
     if not updated_wallet:
          raise HTTPException(status_code=404, detail="Wallet not found")
     return updated_wallet

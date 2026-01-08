@@ -24,6 +24,7 @@ class Wallet(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     balance = Column(Float, default=0.0)
     status = Column(Enum(WalletStatus), default=WalletStatus.ACTIVE)
+    pin = Column(String(4), nullable=False)  # 4-digit PIN for authentication
 
     owner = relationship("User", back_populates="wallet")
     sent_transactions = relationship("Transaction", foreign_keys="Transaction.from_wallet_id", cascade="all, delete-orphan")

@@ -317,9 +317,26 @@ if (createWalletForm) {
     createWalletForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(e.target));
-        data.user_id = parseInt(data.user_id);
 
-        const res = await api('/wallets/', 'POST', data);
+        // Validate PIN
+        if (!/^\d{4}$/.test(data.pin)) {
+            showToast('PIN must be exactly 4 digits!', 'error');
+            return;
+        }
+
+        // Validate PIN confirmation
+        if (data.pin !== data.pin_confirm) {
+            showToast('PINs do not match!', 'error');
+            return;
+        }
+
+        // Remove pin_confirm before sending to API
+        const payload = {
+            user_id: parseInt(data.user_id),
+            pin: data.pin
+        };
+
+        const res = await api('/wallets/', 'POST', payload);
         if (res.success) {
             showToast(`Wallet #${res.data.id} created successfully!`);
             e.target.reset();
@@ -346,6 +363,7 @@ if (depositForm) {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(e.target));
         const amount = parseFloat(data.amount);
+        const pin = data.pin;
 
         // Validation for amount > 0
         if (amount <= 0) {
@@ -353,7 +371,13 @@ if (depositForm) {
             return;
         }
 
-        const res = await api(`/wallets/${data.wallet_id}/deposit`, 'POST', { amount: amount });
+        // Validate PIN
+        if (!/^\d{4}$/.test(pin)) {
+            showToast('PIN must be exactly 4 digits!', 'error');
+            return;
+        }
+
+        const res = await api(`/wallets/${data.wallet_id}/deposit`, 'POST', { amount: amount, pin: pin });
         if (res.success) {
             showToast(`Deposited $${data.amount} to Wallet #${data.wallet_id}`);
             e.target.reset();
@@ -436,6 +460,13 @@ if (transferForm) {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(e.target));
         const fromId = parseInt(data.from_wallet_id);
+        const pin = data.pin;
+
+        // Validate PIN
+        if (!/^\d{4}$/.test(pin)) {
+            showToast('PIN must be exactly 4 digits!', 'error');
+            return;
+        }
 
         if (raceToggle && raceToggle.checked) {
             // BATCH MODE - Multiple Recipients
@@ -485,7 +516,8 @@ if (transferForm) {
 
             const batchPayload = {
                 from_wallet_id: fromId,
-                transfers: transfers
+                transfers: transfers,
+                pin: pin
             };
 
             const res = await api('/transfer/batch', 'POST', batchPayload);
@@ -522,7 +554,8 @@ if (transferForm) {
             const res = await api('/transfer/', 'POST', {
                 from_wallet_id: fromId,
                 to_wallet_id: toId1,
-                amount: amount
+                amount: amount,
+                pin: pin
             });
             if (res.success) {
                 showToast('Transfer completed successfully!');

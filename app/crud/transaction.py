@@ -9,6 +9,7 @@ def create_transfer_vulnerable(db: Session, transaction: TransactionCreate):
     SECURE IMPLEMENTATION:
     - Uses SELECT ... FOR UPDATE to lock the sender's wallet row.
     - Prevents race conditions by ensuring only one transaction can modify the balance at a time.
+    - Requires PIN authentication for sender wallet.
     """
     
     # Validate amount > 0
@@ -20,25 +21,29 @@ def create_transfer_vulnerable(db: Session, transaction: TransactionCreate):
     sender = db.query(Wallet).filter(Wallet.id == transaction.from_wallet_id).with_for_update().first()
     if not sender:
         raise HTTPException(status_code=404, detail="Sender wallet not found")
+    
+    # 2. VERIFY PIN
+    if sender.pin != transaction.pin:
+        raise HTTPException(status_code=401, detail="Incorrect PIN for sender wallet")
         
-    # 2. READ RECEIVER (Locking receiver is also good practice to prevent deadlocks in reverse transfers, 
+    # 3. READ RECEIVER (Locking receiver is also good practice to prevent deadlocks in reverse transfers, 
     # but strictly for double-spend protection, locking sender is critical)
     receiver = db.query(Wallet).filter(Wallet.id == transaction.to_wallet_id).first()
     if not receiver:
         raise HTTPException(status_code=404, detail="Receiver wallet not found")
 
-    # 3. VALIDATE
+    # 4. VALIDATE
     if sender.balance < transaction.amount:
         raise HTTPException(status_code=400, detail="Insufficient funds")
 
     if sender.status != WalletStatus.ACTIVE:
          raise HTTPException(status_code=400, detail="Sender wallet inactive")
 
-    # 4. UPDATE BALANCES (In memory -> DB)
+    # 5. UPDATE BALANCES (In memory -> DB)
     sender.balance -= transaction.amount
     receiver.balance += transaction.amount
     
-    # 5. CREATE TRANSACTION RECORD
+    # 6. CREATE TRANSACTION RECORD
     db_txn = Transaction(
         from_wallet_id=transaction.from_wallet_id,
         to_wallet_id=transaction.to_wallet_id,
@@ -46,7 +51,7 @@ def create_transfer_vulnerable(db: Session, transaction: TransactionCreate):
     )
     db.add(db_txn)
     
-    # 6. COMMIT
+    # 7. COMMIT
     db.commit()
     db.refresh(db_txn)
     
@@ -60,6 +65,10 @@ def create_batch_transfer(db: Session, batch: TransactionCreate):
     sender = db.query(Wallet).filter(Wallet.id == batch.from_wallet_id).with_for_update().first()
     if not sender:
         raise HTTPException(status_code=404, detail="Sender wallet not found")
+    
+    # VERIFY PIN
+    if sender.pin != batch.pin:
+        raise HTTPException(status_code=401, detail="Incorrect PIN for sender wallet")
 
     if sender.status != WalletStatus.ACTIVE:
          raise HTTPException(status_code=400, detail="Sender wallet inactive")
