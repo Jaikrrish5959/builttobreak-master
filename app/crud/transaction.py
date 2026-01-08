@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from app.database.models import Transaction, Wallet, WalletStatus
 from app.schemas.transaction import TransactionCreate
 from fastapi import HTTPException
+from app.core.security import verify_pin
 import time
 
 def create_transfer_vulnerable(db: Session, transaction: TransactionCreate):
@@ -22,8 +23,8 @@ def create_transfer_vulnerable(db: Session, transaction: TransactionCreate):
     if not sender:
         raise HTTPException(status_code=404, detail="Sender wallet not found")
     
-    # 2. VERIFY PIN
-    if sender.pin != transaction.pin:
+    # 2. VERIFY PIN using bcrypt
+    if not verify_pin(transaction.pin, sender.pin):
         raise HTTPException(status_code=401, detail="Incorrect PIN for sender wallet")
         
     # 3. READ RECEIVER (Locking receiver is also good practice to prevent deadlocks in reverse transfers, 
@@ -66,8 +67,8 @@ def create_batch_transfer(db: Session, batch: TransactionCreate):
     if not sender:
         raise HTTPException(status_code=404, detail="Sender wallet not found")
     
-    # VERIFY PIN
-    if sender.pin != batch.pin:
+    # VERIFY PIN using bcrypt
+    if not verify_pin(batch.pin, sender.pin):
         raise HTTPException(status_code=401, detail="Incorrect PIN for sender wallet")
 
     if sender.status != WalletStatus.ACTIVE:

@@ -2,9 +2,12 @@ from sqlalchemy.orm import Session
 from app.database.models import Wallet
 from app.schemas.wallet import WalletCreate
 from fastapi import HTTPException
+from app.core.security import hash_pin, verify_pin
 
 def create_wallet(db: Session, wallet: WalletCreate):
-    db_wallet = Wallet(user_id=wallet.user_id, pin=wallet.pin)
+    # Hash the PIN before storing
+    hashed_pin = hash_pin(wallet.pin)
+    db_wallet = Wallet(user_id=wallet.user_id, pin=hashed_pin)
     db.add(db_wallet)
     db.commit()
     db.refresh(db_wallet)
@@ -21,15 +24,17 @@ def verify_pin(db: Session, wallet_id: int, pin: str) -> bool:
     wallet = get_wallet(db, wallet_id)
     if not wallet:
         return False
-    return wallet.pin == pin
+    # Use bcrypt verification instead of plain text comparison
+    from app.core.security import verify_pin as verify_pin_hash
+    return verify_pin_hash(pin, wallet.pin)
 
 def deposit_wallet(db: Session, wallet_id: int, amount: float, pin: str):
     wallet = get_wallet(db, wallet_id)
     if not wallet:
         return None
     
-    # Verify PIN
-    if wallet.pin != pin:
+    # Verify PIN using bcrypt
+    if not verify_pin(db, wallet_id, pin):
         raise HTTPException(status_code=401, detail="Incorrect PIN")
     
     wallet.balance += amount
