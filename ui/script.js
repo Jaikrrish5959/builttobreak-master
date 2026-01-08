@@ -31,9 +31,6 @@ themeToggleBtn.addEventListener('click', () => {
 
 // --- State & Storage ---
 let users = [];
-// We use localStorage to persist known wallet IDs for this user's browser session
-// Structure: { [id: number]: { userId: number, lastKnownBalance: number } }
-let localWallets = JSON.parse(localStorage.getItem('local_wallets') || '{}');
 
 // --- Toast System ---
 const showToast = (message, type = 'success') => {
@@ -65,6 +62,15 @@ const api = async (endpoint, method, data) => {
 
     try {
         const response = await fetch(url, options);
+        // Handle non-JSON responses from server errors
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            // If not JSON, it might remain silent or throw error. Try to read text.
+            // For 404 HTML pages, this avoids "Unexpected token <"
+            const text = await response.text();
+            throw { detail: "Server returned non-JSON response: " + text.substring(0, 50) + "..." };
+        }
+
         const result = await response.json();
 
         if (!response.ok) throw result;
@@ -73,13 +79,15 @@ const api = async (endpoint, method, data) => {
         return { success: true, data: result };
     } catch (error) {
         logAction(`${method} ${url}`, 'ERROR', error);
-        showToast(error.detail || 'An error occurred', 'error');
+        showToast(error.detail || error.message || 'An error occurred', 'error');
         return { success: false, error: error };
     }
 };
 
 const logAction = (action, status, details) => {
     const logContainer = document.getElementById('sessionLog');
+    if (!logContainer) return;
+
     const entry = document.createElement('div');
     entry.className = `log-entry ${status.toLowerCase()}`;
     const time = new Date().toLocaleTimeString();
@@ -90,61 +98,46 @@ const logAction = (action, status, details) => {
     logContainer.prepend(entry);
 };
 
-// --- Dashboard Logic ---
-const loadDashboard = async () => {
+// --- Data Loading Functions ---
+
+const loadUsers = async () => {
     // Only fetch if we are on a page that needs user data
-    if (document.getElementById('userList') || document.querySelector('.user-select')) {
-        const res = await api('/users/', 'GET');
-        if (res.success) {
-            users = res.data;
-            if (document.getElementById('userCount')) {
-                document.getElementById('userCount').innerText = users.length;
-            }
-            if (document.getElementById('userList')) {
-                renderUserList();
-            }
-            if (document.querySelector('.user-select')) {
-                updateSelectOptions();
-            }
-            if (document.getElementById('walletList')) {
-                renderWalletList();
-            }
-        }
-    } else if (document.getElementById('walletList')) {
-        // Need users for names, so fetch them
-        const userRes = await api('/users/', 'GET');
-        if (userRes.success) {
-            users = userRes.data;
-        }
-        renderWalletList();
+    if (!document.getElementById('userList') && !document.querySelector('.user-select')) return;
+
+    const res = await api('/users/', 'GET');
+    if (res.success) {
+        users = res.data;
+        updateUserUI();
     }
 };
 
-const renderUserList = () => {
+const updateUserUI = () => {
+    // Update Badge
+    const countBadge = document.getElementById('userCount');
+    if (countBadge) countBadge.innerText = users.length;
+
+    // Update List
     const list = document.getElementById('userList');
-    if (!list) return;
-
-    list.innerHTML = '';
-
-    if (users.length === 0) {
-        list.innerHTML = '<li class="empty-state">No users found. Create one to get started.</li>';
-        return;
+    if (list) {
+        list.innerHTML = '';
+        if (users.length === 0) {
+            list.innerHTML = '<li class="empty-state">No users found. Create one to get started.</li>';
+        } else {
+            users.forEach(user => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div style="display:flex; flex-direction:column;">
+                        <span style="font-weight:500; color:white;">${user.username}</span>
+                        <span style="font-size:0.8em; color:var(--text-secondary);">${user.email}</span>
+                    </div>
+                    <span class="badge">ID: ${user.id}</span>
+                `;
+                list.appendChild(li);
+            });
+        }
     }
 
-    users.forEach(user => {
-        const li = document.createElement('li');
-        li.innerHTML = `
-            <div style="display:flex; flex-direction:column;">
-                <span style="font-weight:500; color:white;">${user.username}</span>
-                <span style="font-size:0.8em; color:var(--text-secondary);">${user.email}</span>
-            </div>
-            <span class="badge">ID: ${user.id}</span>
-        `;
-        list.appendChild(li);
-    });
-};
-
-const updateSelectOptions = () => {
+    // Update Select Options
     const userSelects = document.querySelectorAll('.user-select');
     userSelects.forEach(select => {
         const current = select.value;
@@ -159,11 +152,17 @@ const updateSelectOptions = () => {
     });
 };
 
-const renderWalletList = async () => {
+const loadWallets = async () => {
     const list = document.getElementById('walletList');
     if (!list) return;
 
     list.innerHTML = '<li class="empty-state">Loading...</li>';
+
+    // Need users for names, so ensure they are loaded (if not already)
+    if (users.length === 0) {
+        const userRes = await api('/users/', 'GET');
+        if (userRes.success) users = userRes.data;
+    }
 
     const res = await api('/wallets/', 'GET');
     if (!res.success) {
@@ -171,7 +170,6 @@ const renderWalletList = async () => {
         return;
     }
 
-    // Sort by ID descending
     const wallets = res.data.sort((a, b) => b.id - a.id);
 
     if (wallets.length === 0) {
@@ -182,7 +180,6 @@ const renderWalletList = async () => {
     list.innerHTML = '';
     wallets.forEach(w => {
         const li = document.createElement('li');
-        // Backend returns user_id, check if users loaded
         const user = users.find(u => u.id === w.user_id);
         const userName = user ? user.username : `User ${w.user_id}`;
 
@@ -200,14 +197,6 @@ const renderWalletList = async () => {
     });
 };
 
-// Helper to save wallet to local history (Legacy, kept for potential future use or specific tracking)
-// Helper to save wallet to local history (Removed in favor of backend list)
-const saveLocalWallet = (id, userId, balance = null) => {
-    // No-op
-    if (document.getElementById('walletList')) {
-        renderWalletList();
-    }
-};
 
 window.fillWalletId = (id) => {
     const walletInput = document.querySelector('input[name="wallet_id"]');
@@ -223,7 +212,6 @@ window.checkBalance = async (id) => {
         const box = document.getElementById('balanceDisplay');
         const val = document.getElementById('balanceValue');
 
-        // Only update if element exists (might be on a different page)
         if (box && val) {
             box.classList.remove('hidden');
             val.innerText = `$${res.data.balance.toFixed(2)}`;
@@ -231,24 +219,25 @@ window.checkBalance = async (id) => {
 
         showToast(`Balance updated: $${res.data.balance}`, 'success');
 
-        // Refresh list if on wallets page
-        if (document.getElementById('walletList')) {
-            renderWalletList();
-        }
+        // Always try to refresh wallet list if visible
+        loadWallets();
     }
 };
 
 // --- Forms ---
+
 const createUserForm = document.getElementById('createUserForm');
 if (createUserForm) {
     createUserForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(e.target));
+
         const res = await api('/users/', 'POST', data);
         if (res.success) {
             showToast(`User '${res.data.username}' created!`);
             e.target.reset();
-            loadDashboard();
+            // EXPLICIT REFRESH
+            await loadUsers();
         }
     });
 }
@@ -264,8 +253,8 @@ if (createWalletForm) {
         if (res.success) {
             showToast(`Wallet #${res.data.id} created successfully!`);
             e.target.reset();
-            // Refresh list if present
-            if (document.getElementById('walletList')) renderWalletList();
+            // EXPLICIT REFRESH
+            await loadWallets();
         }
     });
 }
@@ -284,13 +273,18 @@ if (depositForm) {
     depositForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(e.target));
+
         const res = await api(`/wallets/${data.wallet_id}/deposit`, 'POST', { amount: parseFloat(data.amount) });
         if (res.success) {
             showToast(`Deposited $${data.amount} to Wallet #${data.wallet_id}`);
             e.target.reset();
-            // Update balance display if visible and matching
+
+            // Note: If we are on the deposit page, there is no wallet list to update,
+            // but if we were, we should. The checkBalance call updates balance display.
             const visibleInput = document.querySelector('input[name="wallet_id"]');
-            if (visibleInput && visibleInput.value == data.wallet_id) window.checkBalance(visibleInput.value);
+            if (visibleInput && visibleInput.value == data.wallet_id) {
+                await window.checkBalance(visibleInput.value);
+            }
         }
     });
 }
@@ -312,4 +306,8 @@ if (transferForm) {
     });
 }
 
-loadDashboard();
+// Initial Load
+document.addEventListener('DOMContentLoaded', () => {
+    loadUsers();
+    loadWallets();
+});
