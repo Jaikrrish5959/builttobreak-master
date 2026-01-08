@@ -43,3 +43,7 @@ async def read_balance():
 @app.get("/transactions")
 async def read_transactions_ui():
     return FileResponse('ui/transactions.html')
+
+@app.get("/voice-assistance")
+async def read_voice_assistance():
+    return FileResponse('ui/voice-assistance.html')

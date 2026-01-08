@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,9 +10,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
     <div id="toast-container"></div>
-    
+
     <nav class="navbar">
         <a href="/" style="text-decoration: none; color: inherit;">
             <div class="nav-brand">
@@ -25,6 +27,7 @@
             <a href="/deposit">Deposit</a>
             <a href="/transfer">Transfer</a>
             <a href="/balance">Balance</a>
+            <a href="/voice-assistance">Voice Assistance</a>
             <a href="/docs" target="_blank">API Docs</a>
             <button id="themeToggle" class="theme-toggle" aria-label="Toggle Theme"></button>
         </div>
@@ -38,7 +41,7 @@
 
         <!-- Navigation Cards Grid -->
         <section class="grid-section" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
-            
+
             <a href="/users" class="card hover-card" style="text-decoration:none; color:inherit;">
                 <div class="card-body" style="text-align:center; padding: 30px;">
                     <div style="font-size: 2em; margin-bottom: 10px;">👥</div>
@@ -86,7 +89,8 @@
             <div class="card full-width">
                 <div class="card-header">
                     <h2>Session Activity</h2>
-                    <button onclick="document.getElementById('sessionLog').innerHTML=''" class="btn-text">Clear Logs</button>
+                    <button onclick="document.getElementById('sessionLog').innerHTML=''" class="btn-text">Clear
+                        Logs</button>
                 </div>
                 <div class="card-body">
                     <div id="sessionLog" class="log-container">
@@ -99,4 +103,5 @@
 
     <script src="/static/script.js"></script>
 </body>
+
 </html>
