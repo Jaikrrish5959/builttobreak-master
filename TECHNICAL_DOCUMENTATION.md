@@ -546,39 +546,6 @@ erDiagram
 
 ---
 
-## Security Architecture
-
-### Security Layers
-
-```mermaid
-graph TB
-    subgraph "Request Flow"
-        Req[Incoming API Request] --> RL[Rate Limiter]
-        RL --> Val[Input Validation<br/>Pydantic Schemas]
-        Val --> Auth[PIN Verification]
-        Auth --> Exec[Execute Operation]
-    end
-    
-    subgraph "PIN Security Flow"
-        PIN[Plain PIN<br/>"1234"] --> Hash[Bcrypt Hash Function<br/>with auto-salt]
-        Hash --> Store[(Database Storage<br/>pin_hash column)]
-        
-        VerifyReq[Verification Request] --> Fetch[Fetch Hashed PIN<br/>from database]
-        Fetch --> Compare[Constant-Time Compare<br/>bcrypt.checkpw]
-        Compare --> Result{Match?}
-        Result -->|Yes| Allow[✅ Allow Operation]
-        Result -->|No| Deny[❌ Deny Operation]
-    end
-    
-    Auth --> PIN
-    Auth --> VerifyReq
-    
-    style RL fill:#f59e0b,stroke:#d97706,color:#fff
-    style Hash fill:#ef4444,stroke:#dc2626,color:#fff
-    style Allow fill:#22c55e,stroke:#16a34a,color:#fff
-    style Deny fill:#ef4444,stroke:#dc2626,color:#fff
-```
-
 ### Security Features
 
 1. **Rate Limiting**
@@ -699,5 +666,3 @@ This documentation provides a complete technical overview of the Wallet Engine t
 ✅ **Security**: Bcrypt PIN hashing and rate limiting  
 ✅ **Innovation**: AI-powered voice interface  
 ✅ **Production Ready**: Docker deployment and comprehensive testing  
-
-All diagrams are in Mermaid format and will render on GitHub and most documentation platforms.
